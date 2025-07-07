@@ -1,47 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Camera + Location to Telegram</title>
+  <title>Camera and Location to Telegram</title>
 </head>
 <body>
-  <video id="video" autoplay></video>
-  <button onclick="captureAndSend()">Capture & Send</button>
-  <script>
-    const botToken = '8110393453:AAFWhP0vFwSJobp5GhEe7XjzKiRoorMyg4Y';
-    const chatId = '-4967067213,';
+  <h2>Camera Preview</h2>
+  <video id="video" autoplay playsinline width="300"></video>
+  <br>
+  <button onclick="captureAndSend()">Capture and Send</button>
 
-    navigator.mediaDevices.getUserMedia({ video: true })
+  <script>
+    const botToken = '8110393453:AAFWhP0vFwSJobp5GhEe7XjzKiRoorMyg4Y
+';
+    const chatId = '-4967067213';
+
+    // Start camera
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }) // "environment" for rear camera
       .then(stream => {
-        document.getElementById('video').srcObject = stream;
+        const video = document.getElementById('video');
+        video.srcObject = stream;
+      })
+      .catch(err => {
+        console.error('Camera error:', err);
       });
 
     async function captureAndSend() {
-      const canvas = document.createElement('canvas');
       const video = document.getElementById('video');
+      const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      canvas.getContext('2d').drawImage(video, 0, 0);
 
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg'));
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Convert canvas to Blob
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.95));
+
+      // Get location
       const location = await getLocation();
 
+      // Send to Telegram
       const formData = new FormData();
       formData.append('chat_id', chatId);
       formData.append('photo', blob);
       formData.append('caption', `Location: ${location.lat}, ${location.lon}`);
 
-      await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+      fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
         method: 'POST',
         body: formData,
-      });
-      alert('Sent!');
+      }).then(() => alert('Sent to Telegram!'))
+        .catch(err => console.error('Telegram error:', err));
     }
 
     function getLocation() {
       return new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(pos => {
-          resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-        }, reject);
+        navigator.geolocation.getCurrentPosition(
+          pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+          err => reject(err)
+        );
       });
     }
   </script>
